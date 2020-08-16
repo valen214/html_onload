@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+	<meta charset='utf-8'>
+	<meta name='viewport' content='width=device-width,initial-scale=1'>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+
+
+
+  
+	<style>
+		html, body {
+			overflow: hidden;
+			width: 100%;
+			height: 100%;
+			margin: 0;
+			padding: 0;
+		}
+	</style>
+</head>
+
+<body>
+<script>
+/*
+I cannot find replacement for having a script run exactly here,
+before everything in body is parsed, and as soon as document.body is non null
+
+
+Object.defineProperty(document, "body", ...)
+with getter and setter won't work
+*/
+
+/*
+onLoadFunctions are only availabe in (local) encapsulated object
+for security concern
+*/
+var onLoadFunctions = {
+	func1(){
+		console.log("func1");
+	},
+	func2(e){
+		console.log("func2", e);
+	},
+};
+window["globalOnLoad"] = function globalOnLoad(e){
+	console.log("global on load:", e);
+};
+new MutationObserver((mutationList, observer) => {
+	
+	mutationList.forEach((record) => {
+		record.addedNodes.forEach(node => {
+			if(node.dataset && node.dataset.hasOwnProperty("load")){
+				let funcName = node.dataset["load"];
+				if(onLoadFunctions.hasOwnProperty(funcName)){
+					let onLoad = onLoadFunctions[funcName];
+					if(typeof onLoad === "function"){
+						onLoad(node); // passing the target node to the onload function
+					}
+				}
+			} else if(node instanceof Element){
+			/*
+			Node.attributes is obsolete
+			https://developer.mozilla.org/en-US/docs/Web/API/Element/attributes#Specifications
+			attributes should only be accessed with Element
+			or more preferably, use data attribute as above
+			*/
+				console.warn("Element:", node,
+						"does not have data attribute,",
+						"try Element.attributes:", node.attributes);
+				
+				let funcName = node.getAttribute("load");
+				/*
+				might remove the following line if you don't want unintended behaviour, which is
+				if the element has its own onload behaviour, like <img> or <iframe> or <link>, etc
+				and that function return a function name that exists in the current scope,
+				that function will be invoked here
+				
+				*/
+				if(!funcName) funcName = node.getAttribute("onload"); // see comment above
+				
+				
+				if(onLoadFunctions.hasOwnProperty(funcName)){
+					let onLoad = onLoadFunctions[funcName];
+					if(typeof onLoad === "function"){
+						onLoad(node); // passing the target node to the onload function
+					}
+				}
+			}
+		});
+	});
+}).observe(document.body, {
+	subtree: true,
+	childList: true,
+});
+</script>
+
+<div data-load="func2">Hello</div>
+
+<!--
+
+How about a comment
+
+-->
+
+<script onload="func2()"></script>
+<script onload="globalOnLoad()"></script>
+<img onload="func2"></img>
+<img onload="func2()"></img>
+<img onload="globalOnLoad" />
+<img onload="globalOnLoad(this)" />
+<img onload="javascript:console.log('wtf');" />
+<img load="func2" />
+<img load="func2()" />
+
+<script>
+/*
+the main problem is here,
+I would consider the onload event is working iff
+everything above is executed before
+the following text node is inserted
+*/
+let begin = performance.now();
+while(performance.now() - begin < 3000); // halt body parsing for 3 seconds
+setTimeout(() => {
+	let text = document.createTextNode("hey");
+	text.dataset = { "load": "func1" };
+	document.body.appendChild(text);
+	
+	let div = document.createElement("div");
+	div.dataset.load = () => {
+		console.log("everything loaded after this message " +
+				"(except func1) is not true 'onload'");
+}, 3000);
+</script>
+
+
+
+
+<div data-load="func1">World</div>
+</body>
+</html>
