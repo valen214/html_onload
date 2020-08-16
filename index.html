@@ -122,7 +122,9 @@ the following text node is inserted
 let begin = performance.now();
 while(performance.now() - begin < 3000); // halt body parsing for 3 seconds
 setTimeout(() => {
-	let text = document.createTextNode("hey");
+	let text = document.createTextNode(
+				"everything loaded after this message " +
+				"(except func1) is not true 'onload'");
 	text.dataset = { "load": "func1" };
 	document.body.appendChild(text);
 	
